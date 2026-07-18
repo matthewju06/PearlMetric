@@ -1,33 +1,71 @@
-# PolyContext
+# PearlMetric
 
-An automated intelligence pipeline and data platform designed to reduce informational asymmetry in prediction markets (such as Polymarket and Kalshi). The system ingests highly volatile public contract events, coordinates target-oriented web scraping and sentiment gathering, and presents structured contextual summaries alongside historical token price trends.
+PearlMetric is an enterprise-grade distributed analytics platform designed to calculate, log, and analyze time-series color progression metrics. The system leverages computer vision pipelines to process image inputs, track alignment matrices, and serve microservice analytics through a high-performance .NET gateway layer.
+
+---
 
 ## System Architecture
 
-The platform uses a polyglot microservice layout to leverage the specific strengths of both ecosystem frameworks:
+The application is built as a decoupled, multi-service topology designed for high throughput, precise data processing, and clear separation of concerns.
 
-*   **API Gateway (C# / .NET 10 Minimal API):** Manages real-time platform contract ingestion, event-driven cron polling, and robust data delivery to the user interface.
-*   **Database (PostgreSQL 16):** Acts as the central relational data store, managing core entities, historical order book snapshots, and synthesized insights via Entity Framework Core 10.
-*   **Research & Synthesis Cluster (Python):** Operates as an asynchronous background worker tasking specialized scrapers, querying target search endpoints, and utilizing LLM interfaces to parse source text into structured timelines.
-*   **User Interface (Angular):** A scannable, performance-oriented intelligence dashboard displaying active contracts with real-time catalysts and contract clause vulnerability notices.
+```mermaid
+graph TD
+    subgraph PearlMetric [PearlMetric Analytical Data Pipeline]
+        UI[Angular 22 Frontend]
+        Node[Node 24 Gateway]
+        NET[.NET 10 GatewayApi]
+        Py[Python CV Worker]
+        DB[(PostgreSQL 18 DB)]
+    end
 
-## Technical Stack
+    UI -->|HTTP Requests| Node
+    Node -->|Reverse Proxy| NET
+    NET -->|Internal HTTP Call| Py
+    NET -->|Entity Framework Core| DB
+    
+    style UI fill:#dd0031,stroke:#fff,stroke-width:2px,color:#fff
+    style Node fill:#339933,stroke:#fff,stroke-width:2px,color:#fff
+    style NET fill:#512bd4,stroke:#fff,stroke-width:2px,color:#fff
+    style Py fill:#3776ab,stroke:#fff,stroke-width:2px,color:#fff
+    style DB fill:#336791,stroke:#fff,stroke-width:2px,color:#fff
+```
 
-*   **Backend:** .NET 10 Web API, Entity Framework Core 10
-*   **Data Science / Scraping:** Python 3.11+, PostgreSQL 16
-*   **Frontend:** Angular
-*   **Infrastructure:** Docker, Docker Compose
+### Core Components
+- Frontend UI: Built with Angular 22, providing a clean, responsive analytics dashboard for data visualization and progress tracking.
+- Reverse Proxy / Gateway: Managed via Node 24 to handle request routing, transport security, and client communication.
+- Core API Engine: Powered by .NET 10 Minimal APIs, managing business logic, orchestrating internal microservices, and handling structural database storage.
+- Computer Vision Engine: An isolated Python worker task queue running color calibration loops and processing matrix analysis algorithms.
+- Data Tier: A PostgreSQL 18 database utilizing Entity Framework Core for complex relational maps and time-series logging.
 
-## Repository Directory Structure
+## Repository Structure
+```
+pearl-metric
+├── .gitignore             # Global version control exclusion rules
+├── docker-compose.yml     # Production-mirrored multi-container local orchestration
+├── PearlMetric.slnx       # Modern .NET 10 lightweight solution format
+├── README.md              # System documentation
+└── src                    # Domain isolation root
+    └── GatewayApi         # Core backend microservice
+        ├── Data           # DBContext mappings and active persistence handlers
+        ├── Models         # Strongly-typed data contract tables
+        └── Program.cs     # Top-level application configuration entry point
+```
 
-```text
-PolyContext/
-├── .github/                  # CI/CD Workflows and project configurations
-├── src/
-│   ├── GatewayApi/           # .NET 10 Minimal API Gateway service
-│   ├── ResearchWorker/       # Python background scraping and LLM synthesis worker
-│   └── ClientApp/            # Angular frontend dashboard application
-├── infra/
-│   └── database/             # Persistent SQL storage volume mounts
-├── PolyContext.sln           # Root .NET enterprise solution file
-└── docker-compose.yml        # Local multi-container environment manifest
+## Getting Started
+### Prerequisites
+- Docker & Docker Compose
+- .NET 10 SDK
+
+### Spin Up Infrastructure
+To provision the PostgreSQL instance and baseline components locally, spin up the Docker network:
+```
+docker compose up -d
+```
+
+
+### Run the API Engine
+Navigate to the source directory and boot up the .NET runtime:
+```
+cd src/GatewayApi
+dotnet watch run
+```
