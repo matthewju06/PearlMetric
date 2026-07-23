@@ -2,6 +2,8 @@ namespace PearlMetric.GatewayApi.Models;
 
 public class WhiteningRegimen
 {
+    public const int ProductNameMaxLength = 200;
+
     public Guid Id { get; set; }
     public Guid PatientId { get; set; }
     public string ProductName { get; set; } = string.Empty;

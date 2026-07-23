@@ -2,6 +2,8 @@ namespace PearlMetric.GatewayApi.Models;
 
 public class ColorMetricSample
 {
+    public const int ShadeGuideValueMaxLength = 32;
+
     public long Id { get; set; }
     public Guid ScanRunId { get; set; }
     public int SequenceIndex { get; set; }

@@ -2,6 +2,8 @@ namespace PearlMetric.GatewayApi.Models;
 
 public class Patient
 {
+    public const int DisplayNameMaxLength = 200;
+
     public Guid Id { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
