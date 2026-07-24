@@ -1,90 +1,149 @@
 # PearlMetric
 
-PearlMetric is an enterprise-grade distributed analytics platform designed to calculate, log, and analyze time-series color progression metrics. The system leverages computer vision pipelines to process image inputs, track alignment matrices, and serve microservice analytics through a high-performance .NET gateway layer.
+Local MVP for teeth-whitening shade tracking: capture scan frames, run color analysis, and track DeltaE progress over a regimen.
 
----
+## Architecture
 
-## System Architecture
-
-The application is built as a decoupled, multi-service topology designed for high throughput, precise data processing, and clear separation of concerns.
+Angular calls the ASP.NET gateway directly. The Python CV worker is isolated behind an HTTP contract; local development currently uses an in-process fake analyzer.
 
 ```mermaid
 graph TD
-    subgraph PearlMetric [PearlMetric Analytical Data Pipeline]
-        UI[Angular 22 Frontend]
-        Node[Node 24 Gateway]
-        NET[.NET 10 GatewayApi]
-        Py[Python CV Worker]
-        DB[(PostgreSQL 18 DB)]
-    end
+    UI[Angular 22 Frontend]
+    NET[.NET 10 GatewayApi]
+    Py[Python CV Worker]
+    DB[(PostgreSQL 18)]
+    FS[Local image storage]
 
-    UI -->|HTTP Requests| Node
-    Node -->|Reverse Proxy| NET
-    NET -->|Internal HTTP Call| Py
-    NET -->|Entity Framework Core| DB
-    
+    UI -->|HTTP /api| NET
+    NET -->|EF Core| DB
+    NET -->|file store| FS
+    NET -->|AnalyzeScan HTTP| Py
+
     style UI fill:#dd0031,stroke:#fff,stroke-width:2px,color:#fff
-    style Node fill:#339933,stroke:#fff,stroke-width:2px,color:#fff
     style NET fill:#512bd4,stroke:#fff,stroke-width:2px,color:#fff
     style Py fill:#3776ab,stroke:#fff,stroke-width:2px,color:#fff
     style DB fill:#336791,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
-### Core Components
-- Frontend UI: Built with Angular 22, providing a clean, responsive analytics dashboard for data visualization and progress tracking.
-- Reverse Proxy / Gateway: Managed via Node 24 to handle request routing, transport security, and client communication.
-- Core API Engine: Powered by .NET 10 Minimal APIs, managing business logic, orchestrating internal microservices, and handling structural database storage.
-- Computer Vision Engine: An isolated Python worker task queue running color calibration loops and processing matrix analysis algorithms.
-- Data Tier: A PostgreSQL 18 database utilizing Entity Framework Core for complex relational maps and time-series logging.
+| Piece | Role today |
+|---|---|
+| **GatewayApi** | Minimal APIs, validation, EF persistence, frame storage, analysis orchestration |
+| **PostgreSQL 18** | Patients, regimens, runs, frames, calibration, color samples |
+| **Local image store** | Frame bytes under `src/GatewayApi/storage/` (gitignored) |
+| **Fake CV client** | Deterministic Lab/DeltaE stand-in until the Python worker lands |
+| **Angular frontend** | Not scaffolded yet (`src/Frontend/` reserved) |
 
-## Repository Structure
+## Repository layout
+
 ```
 pearl-metric
-├── .gitignore             # Global version control exclusion rules
-├── docker-compose.yml     # Production-mirrored multi-container local orchestration
-├── PearlMetric.slnx       # Modern .NET 10 lightweight solution format
-├── README.md              # System documentation
-└── src                    # Domain isolation root
-    └── GatewayApi         # Core backend microservice
-        ├── Data           # DBContext mappings and active persistence handlers
-        ├── Models         # Strongly-typed data contract tables
-        └── Program.cs     # Top-level application configuration entry point
+├── .env.example
+├── docker-compose.yml
+├── global.json              # .NET SDK pin
+├── .nvmrc                   # Node 24 pin (Angular later)
+├── PearlMetric.slnx
+├── PLAN.md
+├── scripts/build.sh
+├── scripts/test.sh
+└── src/GatewayApi
+    ├── Configuration/       # Options (CV worker, image storage)
+    ├── Contracts/Api/       # Frontend HTTP DTOs
+    ├── Contracts/CvWorker/  # Gateway ↔ CV wire format
+    ├── Data/                # EF DbContext
+    ├── Domain/              # Status transition rules
+    ├── Endpoints/           # Minimal API routes
+    ├── Models/              # EF entities
+    ├── Services/            # Application logic (+ fake CV)
+    ├── Storage/             # Local file image store + validation
+    └── Validation/          # Request → Problem Details
 ```
 
-## Getting Started
-### Prerequisites
+## Prerequisites
+
 - Docker & Docker Compose
-- .NET 10 SDK (pinned in `global.json`)
-- Node.js 24 (pinned in `.nvmrc`; used later for Angular)
+- .NET 10 SDK (see `global.json`)
+- Node.js 24 (see `.nvmrc`; needed later for Angular)
 
-### Spin Up Infrastructure
-Create an untracked local environment file and replace its placeholder password:
+## Getting started
 
-```
+### 1. Postgres
+
+```bash
 cp .env.example .env
-```
-
-To provision PostgreSQL locally, spin up the Docker network:
-
-```
+# set POSTGRES_PASSWORD in .env
 docker compose up -d
 ```
 
-### Build and Verify
-From the repository root:
+### 2. Connection string
 
+Password must match `.env`:
+
+```bash
+cd src/GatewayApi
+dotnet user-secrets set ConnectionStrings:PearlMetric \
+  'Host=localhost;Port=5432;Database=pearlmetric_dev;Username=pearladmin;Password=YOUR_PASSWORD'
 ```
+
+Or set `ConnectionStrings__PearlMetric` in the environment.
+
+### 3. Build and run
+
+```bash
+# from repo root
 ./scripts/build.sh
 ./scripts/test.sh
-```
 
-### Run the API Engine
-Navigate to the source directory and store a matching connection string in .NET user secrets. The password must match `POSTGRES_PASSWORD` in `.env`:
-
-```
 cd src/GatewayApi
-dotnet user-secrets set ConnectionStrings:PearlMetric 'Host=localhost;Port=5432;Database=pearlmetric_dev;Username=pearladmin;Password=replace-with-your-local-password'
 dotnet watch run
 ```
 
-Alternatively, provide the connection string through the `ConnectionStrings__PearlMetric` environment variable. If the PostgreSQL volume was initialized previously, use that volume's existing password or recreate the local development volume.
+Note the HTTP URL in the console (often `http://localhost:5039`).
+
+### 4. API docs (Development)
+
+With the API running in Development:
+
+- **Scalar UI:** `http://localhost:<port>/scalar`
+- **OpenAPI JSON:** `http://localhost:<port>/openapi/v1.json`
+
+Scalar lists public endpoints with summaries/descriptions. Path IDs (`patientId`, `regimenId`, `runId`) are real GUIDs from create responses in your local database — paste those when trying requests.
+
+## Typical clinic flow
+
+1. `POST /api/patients` — create patient  
+2. `POST /api/regimens` — start whitening regimen  
+3. `POST /api/runs` — open a Pending scan run  
+4. `POST /api/runs/{runId}/frames` — multipart upload; form field `files` (JPEG/PNG)  
+5. `POST /api/runs/{runId}/analyze` — Pending → Processing → Completed/Failed (fake CV locally)  
+6. `GET /api/runs/{runId}/analysis` — calibration + Lab/DeltaE samples  
+
+DeltaE is measured against the **first completed scan** in the same regimen when one exists. Re-analyzing a Completed run is idempotent.
+
+### Useful extras
+
+| Endpoint | Notes |
+|---|---|
+| `GET /health` | Liveness |
+| `GET /api/runs/{runId}` | Status + frame/sample counts |
+| `GET /internal/frames/{runId}/{sequenceIndex}` | Frame bytes for the CV worker (excluded from Scalar) |
+| `GET /api/analytics/regimens/{id}/progress` | Placeholder (`501`) until analytics ships |
+
+## Frame upload tip
+
+Use multipart form-data with key **`files`** (type File). Do not set `Content-Type` manually in Postman/Scalar beyond what the client sets for multipart.
+
+## Configuration
+
+| Setting | Purpose |
+|---|---|
+| `ConnectionStrings:PearlMetric` | Postgres (user secrets or env) |
+| `CvWorker:BaseUrl` / `TimeoutSeconds` | Future Python worker URL |
+| `ImageStorage:*` | Local root path, size/dimension limits, max frames per run |
+
+See `src/GatewayApi/appsettings.json` and `.env.example`.
+
+## Notes
+
+- Do not commit `.env` or real passwords.
+- Wiping the Docker Postgres volume clears patients/runs; restarting the API alone does not.
+- Uploading more frames to the same run appends sequence indexes (`0`, `1`, …).
