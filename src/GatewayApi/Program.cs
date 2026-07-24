@@ -1,7 +1,10 @@
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using PearlMetric.GatewayApi.Configuration;
 using PearlMetric.GatewayApi.Data;
 using PearlMetric.GatewayApi.Endpoints;
+using PearlMetric.GatewayApi.Services;
+using PearlMetric.GatewayApi.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +14,17 @@ var connectionString = builder.Configuration.GetConnectionString("PearlMetric")
 
 builder.Services.AddDbContext<PearlMetricDb>(options =>
     options.UseNpgsql(connectionString));
+
+builder.Services.AddScoped<PatientService>();
+builder.Services.AddScoped<RegimenService>();
+builder.Services.AddScoped<ScanRunService>();
+builder.Services.AddScoped<FrameUploadService>();
+builder.Services.AddSingleton<IImageStore, LocalFileImageStore>();
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 builder.Services
     .AddOptions<CvWorkerOptions>()
@@ -30,6 +44,12 @@ builder.Services
     .Validate(
         options => !string.IsNullOrWhiteSpace(options.RootPath),
         "ImageStorage:RootPath is required.")
+    .Validate(
+        options => options.MaxFrameBytes > 0,
+        "ImageStorage:MaxFrameBytes must be greater than zero.")
+    .Validate(
+        options => options.MaxFramesPerRun is > 0 and <= 32,
+        "ImageStorage:MaxFramesPerRun must be between 1 and 32.")
     .ValidateOnStart();
 
 builder.Services.AddProblemDetails();

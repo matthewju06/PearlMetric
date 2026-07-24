@@ -1,0 +1,55 @@
+using PearlMetric.GatewayApi.Contracts.Api.Runs;
+using PearlMetric.GatewayApi.Services;
+using PearlMetric.GatewayApi.Validation;
+
+namespace PearlMetric.GatewayApi.Endpoints;
+
+public static class ScanRunEndpoints
+{
+    public static RouteGroupBuilder MapScanRunEndpoints(this RouteGroupBuilder api)
+    {
+        var group = api.MapGroup("/runs").WithTags("Runs");
+
+        group.MapPost("/", async (
+                CreateScanRunRequest request,
+                ScanRunService runs,
+                CancellationToken cancellationToken) =>
+            {
+                if (RequestValidator.Validate(request) is { } problem)
+                {
+                    return problem;
+                }
+
+                if (request.RegimenId == Guid.Empty)
+                {
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["RegimenId"] = ["RegimenId is required."]
+                    });
+                }
+
+                var response = await runs.CreateAsync(request, cancellationToken);
+                return response is null
+                    ? Results.NotFound(new { title = "Regimen not found.", regimenId = request.RegimenId })
+                    : Results.Created($"/api/runs/{response.Id}", response);
+            })
+            .WithName("CreateScanRun")
+            .Produces<ScanRunResponse>(StatusCodes.Status201Created)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesValidationProblem();
+
+        group.MapGet("/{runId:guid}", async (
+                Guid runId,
+                ScanRunService runs,
+                CancellationToken cancellationToken) =>
+            {
+                var response = await runs.GetByIdAsync(runId, cancellationToken);
+                return response is null ? Results.NotFound() : Results.Ok(response);
+            })
+            .WithName("GetScanRun")
+            .Produces<ScanRunResponse>()
+            .Produces(StatusCodes.Status404NotFound);
+
+        return group;
+    }
+}
